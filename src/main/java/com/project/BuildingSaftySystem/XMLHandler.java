@@ -14,8 +14,8 @@ public class XMLHandler {
 
     public XMLHandler(String content1){
         this.content = content1;
-        //this.folderPath = "/home/serveruser/SavedXMLs";
-        this.folderPath = "/home/trifon/SavedXMLs";
+        this.folderPath = "/home/serveruser/SavedXMLs";
+        //this.folderPath = "/home/trifon/SavedXMLs";
 
         LocalDateTime now = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

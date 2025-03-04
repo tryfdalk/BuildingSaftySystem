@@ -174,7 +174,7 @@ public class Dijkstra {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String formattedNow = now.format(formatter);
 
-        String filename = "/home/trifon/SavedXMLs/JSONFiles/" + formattedNow + ".json";
+        String filename = "/home/serveruser/SavedXMLs/JSONFiles/" + formattedNow + ".json";
 
         try (FileWriter file = new FileWriter(filename)) { //"/home/trifon/SavedXMLs/JSONFiles/output.json"
             file.write(mainObject.toString(4)); // 4 is the indentation level for pretty printing

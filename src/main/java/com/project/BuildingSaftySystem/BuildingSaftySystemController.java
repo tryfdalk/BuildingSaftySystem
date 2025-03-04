@@ -2,6 +2,11 @@ package com.project.BuildingSaftySystem;
 
 import DijkstraAlgorithm.Dijkstra;
 import org.json.JSONObject;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
@@ -20,7 +25,7 @@ import java.util.stream.Collectors;
 //@RestController
 public class BuildingSaftySystemController {
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadXml(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<Resource> uploadXml(@RequestParam("file") MultipartFile file) {
         try {
             // Read the contents of the XML file
             String xmlContent = new BufferedReader(
@@ -34,17 +39,25 @@ public class BuildingSaftySystemController {
 
             Dijkstra dj = new Dijkstra(xmlContent);
             dj.createGraph();
+
             JSONObject jsonObj = dj.createJSON();
 
             XMLHandler obj = new XMLHandler(xmlContent);
             obj.SaveFile();
 
-            // Respond to the client with a success message
-            return ResponseEntity.ok("XML File received and processed successfully!");
+            byte[] jsonBytes = jsonObj.toString(4).getBytes(StandardCharsets.UTF_8);
+            ByteArrayResource resource = new ByteArrayResource(jsonBytes);
+
+            // Set headers for file download
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", "output.json");
+
+            return ResponseEntity.ok().headers(headers).contentLength(jsonBytes.length).body(resource);
+
         } catch (Exception e) {
-            // Handle any errors
             e.printStackTrace();
-            return ResponseEntity.status(400).body("Error processing the file: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
     }
 }
