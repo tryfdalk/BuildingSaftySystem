@@ -8,8 +8,9 @@ public class Edge {
     boolean disabilityAccessible;
     double speed;
     double disabilitySpeed;
+    boolean compromised;
 
-    public Edge(String id, Node from, Node to, double length, boolean disabilityAccessible, double speed, double disabilitySpeed) {
+    public Edge(String id, Node from, Node to, double length, boolean disabilityAccessible, double speed, double disabilitySpeed, boolean compromised) {
         this.id = id;
         this.from = from;
         this.to = to;
@@ -17,6 +18,7 @@ public class Edge {
         this.disabilityAccessible = disabilityAccessible;
         this.speed = speed;
         this.disabilitySpeed = disabilitySpeed;
+        this.compromised = compromised;
     }
 
     @Override

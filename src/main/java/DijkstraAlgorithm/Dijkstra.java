@@ -21,7 +21,7 @@ import java.util.*;
 public class Dijkstra {
 
     private  String data;
-    private Map<Node, Double> exitPaths;
+    //private Map<Node, Double> exitPaths;
     private Graph graph;
 
     public Dijkstra(String xmlData){
@@ -30,6 +30,7 @@ public class Dijkstra {
         this.graph = null;
     }
 
+    // Ok
     public void createGraph(){
 
         try{
@@ -66,13 +67,16 @@ public class Dijkstra {
                 boolean disabilityAccessible = Boolean.parseBoolean(edgeElement.getElementsByTagName("disability").item(0).getTextContent());
                 double speed = Double.parseDouble(edgeElement.getElementsByTagName("speed").item(0).getTextContent());
                 double disabilitySpeed = Double.parseDouble(edgeElement.getElementsByTagName("disability_speed").item(0).getTextContent());
+                boolean compromised = Boolean.parseBoolean(edgeElement.getElementsByTagName("compromised").item(0).getTextContent());
 
                 Node fromNode = graph.nodes.get(fromId);
                 Node toNode = graph.nodes.get(toId);
 
                 if (fromNode != null && toNode != null) {
-                    Edge edge = new Edge(id, fromNode, toNode, length, disabilityAccessible, speed, disabilitySpeed);
+                    Edge edge = new Edge(id, fromNode, toNode, length, disabilityAccessible, speed, disabilitySpeed, compromised);
+                    Edge edge2 = new Edge(id, toNode, fromNode, length, disabilityAccessible, speed, disabilitySpeed, compromised);
                     graph.addEdge(edge);
+                    graph.addEdge(edge2);
                 }
             }
 
@@ -83,71 +87,157 @@ public class Dijkstra {
         }
     }
 
-    public void findShortestPath(Graph graph, String startId) {
-        Node start = graph.nodes.get(startId);
-        if (start == null) {
-            throw new IllegalArgumentException("Start node not found in graph.");
+    // Ok
+    public static List<Node> findShortestPath(Graph graph, String startId, Boolean disability) {
+        if (!graph.nodes.containsKey(startId)){
+            return Collections.emptyList();
         }
 
-        // Distance map to store the shortest distance from start to each node
+        PriorityQueue<PathNode> pq = new PriorityQueue<>(Comparator.comparingDouble(n -> n.cost));
         Map<Node, Double> distances = new HashMap<>();
-        for (Node node : graph.nodes.values()) {
-            distances.put(node, Double.MAX_VALUE);
-        }
-        distances.put(start, 0.0);
-
+        Map<Node, Node> predecessors = new HashMap<>();
         Set<Node> visited = new HashSet<>();
-        Map<Node, Double> exitPaths = new HashMap<>();
 
-        PriorityQueue<NodeDistancePair> pq = new PriorityQueue<>(Comparator.comparingDouble(pair -> pair.distance));
-        pq.add(new NodeDistancePair(start, 0.0));
+        Node startNode = graph.nodes.get(startId);
+        pq.add(new PathNode(startNode, 0));
+        distances.put(startNode, 0.0);
+
+        Node targetNode = null;
 
         while (!pq.isEmpty()) {
-            NodeDistancePair currentPair = pq.poll();
-            Node currentNode = currentPair.node;
-            double currentDistance = currentPair.distance;
+            PathNode current = pq.poll();
+            Node currentNode = current.node;
 
-            // Skip if already visited
-            if (visited.contains(currentNode)) continue;
+            if (visited.contains(currentNode)){
+                continue;
+            }
             visited.add(currentNode);
 
-            // If current node is an exit, store the result and continue
-            if (currentNode.exit || currentNode.shelter) {
-                exitPaths.put(currentNode, currentDistance);
-                // If all exits are found, we can stop searching
-                if (exitPaths.size() == graph.getExitNodes().size()) {
+            if (currentNode.exit) {
+                targetNode = currentNode;
+                break;
+            }
+
+            for (Edge edge : graph.adjacencyList.getOrDefault(currentNode, Collections.emptyList())) {
+                if (edge.compromised || edge.to.compromised) {
+                    continue;
+                }
+
+                if(disability){
+                    if(!edge.disabilityAccessible){
+                        continue;
+                    }
+                }
+
+                double newDist = distances.getOrDefault(currentNode, Double.MAX_VALUE) + edge.length;
+                if (newDist < distances.getOrDefault(edge.to, Double.MAX_VALUE)) {
+                    distances.put(edge.to, newDist);
+                    predecessors.put(edge.to, currentNode);
+                    pq.add(new PathNode(edge.to, newDist));
+                }
+            }
+        }
+
+        if (targetNode == null) {
+            distances.clear();
+            pq.clear();
+            visited.clear();
+            predecessors.clear();
+            pq.add(new PathNode(startNode, 0));
+            distances.put(startNode, 0.0);
+
+            while (!pq.isEmpty()) {
+                PathNode current = pq.poll();
+                Node currentNode = current.node;
+
+                if (visited.contains(currentNode)){
+                    continue;
+                }
+                visited.add(currentNode);
+
+                if (currentNode.shelter) {
+                    targetNode = currentNode;
                     break;
                 }
-            }
 
-            // Process neighbors
-            for (Edge edge : graph.adjacencyList.getOrDefault(currentNode, new ArrayList<>())) {
-                Node neighbor = edge.to;
-                double newDist = currentDistance + edge.length * edge.speed; // Added the * edge.speed
+                for (Edge edge : graph.adjacencyList.getOrDefault(currentNode, Collections.emptyList())) {
+                    if (edge.compromised || edge.to.compromised){
+                        continue;
+                    }
 
-                if (newDist < distances.get(neighbor)) {
-                    distances.put(neighbor, newDist);
-                    pq.add(new NodeDistancePair(neighbor, newDist));
+                    if(disability){
+                        if(!edge.disabilityAccessible){
+                            continue;
+                        }
+                    }
+
+                    double newDist = distances.getOrDefault(currentNode, Double.MAX_VALUE) + edge.length;
+                    if (newDist < distances.getOrDefault(edge.to, Double.MAX_VALUE)) {
+                        distances.put(edge.to, newDist);
+                        predecessors.put(edge.to, currentNode);
+                        pq.add(new PathNode(edge.to, newDist));
+                    }
                 }
             }
         }
 
-        this.exitPaths = exitPaths;
-    }
-
-    public void printPaths(String startNode){
-
-        if(exitPaths.isEmpty()){
-            System.out.println("\nNo paths to exits or shelters where found from " + startNode + ".");
-            return;
+        if (targetNode == null){
+            return Collections.emptyList();
         }
 
-        System.out.println("\nShortest Paths from " + startNode + ":");
-        for (Map.Entry<Node, Double> entry : exitPaths.entrySet()) {
-            System.out.println("To " + entry.getKey().id + " → Distance: " + entry.getValue());
+        List<Node> path = new ArrayList<>();
+        for (Node at = targetNode; at != null; at = predecessors.get(at)) {
+            path.add(at);
+        }
+        Collections.reverse(path);
+
+        return path;
+    }
+
+    // Ok
+    private static class PathNode {
+        Node node;
+        double cost;
+        PathNode(Node node, double cost) {
+            this.node = node;
+            this.cost = cost;
         }
     }
 
+    // Ok
+    public static Edge getEdge(Graph graph, Node n1, Node n2){
+        for (Map.Entry<Node, List<Edge>> entry : graph.adjacencyList.entrySet()) {
+            List<Edge> edges = entry.getValue();
+
+            for (Edge edge : edges) {
+                if((edge.from == n1 && edge.to == n2) || (edge.to == n1 && edge.from == n2)){
+                    return edge;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Ok
+    public static double[] getPathLength(Graph graph, List<Node> path, Boolean disability){
+        Double distance=0.0,time=0.0;
+
+        for(int i=0;i<path.size()-1;i++){
+            Double lngth = Objects.requireNonNull(getEdge(graph, path.get(i), path.get(i + 1))).length;
+            distance += lngth;
+            if(disability){
+                time += lngth / Objects.requireNonNull(getEdge(graph, path.get(i), path.get(i + 1))).disabilitySpeed;
+            }
+            else{
+                time += lngth / Objects.requireNonNull(getEdge(graph, path.get(i), path.get(i + 1))).speed;
+            }
+        }
+
+        return new double[]{distance, time};
+    }
+
+    // TODO Change path for saving the json
     public JSONObject createJSON(){
 
         JSONObject mainObject = new JSONObject();
@@ -156,15 +246,38 @@ public class Dijkstra {
         JSONArray jsonArray = new JSONArray();
 
         for(String startNode : graph.getNodeIds()){
-            findShortestPath(graph, startNode);
-            JSONObject item = new JSONObject();
-            Node currNode = graph.nodes.get(startNode);
-            item.put("id", currNode.id);
-            item.put("label", currNode.label);
-            for(Map.Entry<Node, Double> entry : exitPaths.entrySet()){
-                String tmp = entry.getKey().id + " " + entry.getKey().label;
-                item.put(tmp, entry.getValue());
+            List<Node> lst = findShortestPath(graph, startNode, false);
+            List<Node> disabilitylst = findShortestPath(graph, startNode, true);
+
+            Map<String, Object> orderedMap = new LinkedHashMap<>();
+
+
+            JSONArray pathArray = new JSONArray();
+            JSONArray disabilityPathArray = new JSONArray();
+
+            for (Node node : lst) {
+                pathArray.put(node.id);
             }
+
+            for (Node node : disabilitylst) {
+                disabilityPathArray.put(node.id);
+            }
+
+            Node currNode = graph.nodes.get(startNode);
+            orderedMap.put("Disability Path", disabilityPathArray);
+
+            orderedMap.put("Path", pathArray);
+            orderedMap.put("Id", currNode.id);
+
+            double[] result = getPathLength(graph,lst,false);
+            double[] disability_result = getPathLength(graph,disabilitylst,true);
+
+            orderedMap.put("Path length", result[0]);
+            orderedMap.put("Disability path length", disability_result[0]);
+            orderedMap.put("Path time", result[1]);
+            orderedMap.put("Disability path time", disability_result[1]);
+
+            JSONObject item = new JSONObject(orderedMap);
             jsonArray.put(item);
         }
 
@@ -175,6 +288,7 @@ public class Dijkstra {
         String formattedNow = now.format(formatter);
 
         String filename = "/home/serveruser/SavedXMLs/JSONFiles/" + formattedNow + ".json";
+        //String filename = "/home/trifon/SavedXMLs/JSONFiles/" + formattedNow + ".json";
 
         try (FileWriter file = new FileWriter(filename)) { //"/home/trifon/SavedXMLs/JSONFiles/output.json"
             file.write(mainObject.toString(4)); // 4 is the indentation level for pretty printing
@@ -184,15 +298,5 @@ public class Dijkstra {
         }
 
         return mainObject;
-    }
-}
-
-class NodeDistancePair {
-    Node node;
-    double distance;
-
-    public NodeDistancePair(Node node, double distance) {
-        this.node = node;
-        this.distance = distance;
     }
 }
